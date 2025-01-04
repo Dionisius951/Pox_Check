@@ -24,7 +24,6 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "android.permission.CAMERA",
         "android.permission.CAMERA"
       ],
       "package": "com.dionisius.Pox"
@@ -39,6 +38,11 @@
           "cameraPermissionText": "$(PRODUCT_NAME) needs access to your Camera."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "c79058f1-8c86-409e-92fa-460b3153971e"
+      }
+    }
   }
 }
