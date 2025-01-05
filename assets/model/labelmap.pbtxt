@@ -1,0 +1,20 @@
+item {
+  id: 1
+  name: 'Monkeypox'
+}
+
+item {
+  id: 2
+  name: 'Chickenpox'
+}
+
+item {
+  id: 3
+  name: 'Acne'
+}
+
+item {
+  id: 4
+  name: 'Measles'
+}
+
