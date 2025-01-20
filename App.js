@@ -1,22 +1,17 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
-import React, { useEffect, useState } from "react";
-import {
-  StyleSheet,
-  View,
-  Text,
-  ActivityIndicator,
-  Dimensions,
-} from "react-native";
+import React, { useEffect } from "react";
+import { StyleSheet, View, Text } from "react-native";
 import { useTensorflowModel } from "react-native-fast-tflite";
 import {
   Camera,
+  runAtTargetFps,
   useCameraDevice,
   useCameraPermission,
-  useFrameProcessor,
   useSkiaFrameProcessor,
 } from "react-native-vision-camera";
 import { useResizePlugin } from "vision-camera-resize-plugin";
-import { Skia } from "@shopify/react-native-skia";
+import { Skia, PaintStyle, useFont } from "@shopify/react-native-skia";
+import { useSharedValue } from "react-native-worklets-core";
 
 export default function App() {
   const { hasPermission, requestPermission } = useCameraPermission();
@@ -25,66 +20,97 @@ export default function App() {
   const objectDetection = useTensorflowModel(
     require("./assets/model/detect.tflite")
   );
+
   const Model =
     objectDetection.state === "loaded" ? objectDetection.model : undefined;
 
   const { resize } = useResizePlugin();
 
-  const frameProcessor = useSkiaFrameProcessor((frame) => {
-    "worklet";
-    frame.render();
+  const box = useSharedValue({
+    top: 0,
+    left: 0,
+    bottom: 0,
+    right: 0,
+  });
 
-    const centerX = frame.width / 2;
-    const centerY = frame.height / 2;
-    const rect = Skia.XYWHRect(centerX, centerY, 150, 150);
-    const paint = Skia.Paint();
-    paint.setColor(Skia.Color("red"));
-    frame.drawRect(rect, paint);
-  }, []);
+  const font = useFont(require("./assets/font/Helvetica.ttf"), 20);
 
-  // const frameProcessor = useSkiaFrameProcessor(
-  //   (frame) => {
-  //     "worklet"
-  //     // if (Model == null) {
-  //     //   return;
-  //     // }
+  const frameProcessor = useSkiaFrameProcessor(
+    (frame) => {
+      "worklet";
+      frame.render();
+      if (Model == null) {
+        return;
+      }
 
-  //     // const resized = resize(frame, {
-  //     //   scale: { width: 300, height: 300 },
-  //     //   pixelFormat: "rgb",
-  //     //   dataType: "uint8",
-  //     // });
+      const w = frame.width;
+      const h = frame.height;
 
-  //     // // Run the inference on the resized image
-  //     // const output = Model.runSync([resized]);
+      runAtTargetFps(30, () => {
+        const resized = resize(frame, {
+          scale: { width: 300, height: 300 },
+          pixelFormat: "rgb",
+          dataType: "float32",
+        });
 
-  //     // const [detection_boxes, labels, detection_scores] = output;
+        // 3. Run inference
+        const results = Model.runSync([resized]);
+        console.log(results);
 
-  //     // for (let i = 0; i < detection_boxes.length; i += 4) {
-  //     //   const confidence = detection_scores[i / 4];
-  //     //   if (confidence > 0.5) {
-  //     //     const top = detection_boxes[i];
-  //     //     const left = detection_boxes[i + 1];
-  //     //     const bottom = detection_boxes[i + 2];
-  //     //     const right = detection_boxes[i + 3];
+        // 3. Interpret results accordingly
+        const detection_boxes = results[1];
+        const detection_classes = results[3];
+        const detection_scores = results[0];
+        const num_detections = results[2];
 
-  //     //     const rect = Skia.XYWHRect(
-  //     //       top * frame.width,
-  //     //       top * frame.height,
-  //     //       (right - left) * frame.width,
-  //     //       (bottom - top) * frame.height
-  //     //     );
+        // console.log(detection_boxes)
 
-  //     //     const rectPaint = Skia.Paint();
-  //     //     rectPaint.setStyle(PaintStyle.Stroke);
-  //     //     rectPaint.setStrokeWidth(20);
-  //     //     rectPaint.setColor(Skia.Color("red"));
-  //     //     frame.drawRect(rect, rectPaint);
-  //     //   }
-  //     // }
-  //   },
-  //   []
-  // );
+        for (let i = 0; i < detection_boxes.length; i += 4) {
+          const confidence = detection_scores[0];
+          if (confidence > 0.5) {
+            const top = detection_boxes[0];
+            const left = detection_boxes[1];
+            const bottom = detection_boxes[2];
+            const right = detection_boxes[3];
+
+            box.value = { top, left, bottom, right };
+
+            const labels = ["Monkeypox", "Chickenpox", "Acne", "Measles"];
+            const label = labels[detection_classes[0]] || "Unknown";
+
+            if (box.value) {
+              const rect = Skia.XYWHRect(
+                box.value.left * w,
+                box.value.top * h,
+                (box.value.right - box.value.left) * w,
+                (box.value.bottom - box.value.top) * h
+              );
+
+              const rectPaint = Skia.Paint();
+              rectPaint.setStyle(PaintStyle.Stroke);
+              rectPaint.setStrokeWidth(5);
+              rectPaint.setColor(Skia.Color("red"));
+              frame.drawRect(rect, rectPaint);
+
+              if (font) {
+                const fontPaint = Skia.Paint();
+                fontPaint.setColor(Skia.Color("red"));
+
+                const text = Skia.TextBlob.MakeFromText(label, font);
+                frame.drawTextBlob(
+                  text,
+                  box.value.left * w,
+                  box.value.top * h - 10,
+                  fontPaint
+                );
+              }
+            }
+          }
+        }
+      });
+    },
+    [Model]
+  );
 
   useEffect(() => {
     requestPermission();
@@ -98,9 +124,10 @@ export default function App() {
             device={device}
             style={StyleSheet.absoluteFill}
             isActive={true}
-            isMirrored={true}
+            isMirrored={false}
             frameProcessor={frameProcessor}
-            pixelFormat="rgb"
+            enableFpsGraph={true}
+            pixelFormat="yuv"
           />
         </>
       ) : (
