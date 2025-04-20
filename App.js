@@ -46,7 +46,7 @@ export default function App() {
       const w = frame.width;
       const h = frame.height;
 
-      runAtTargetFps(30, () => {
+      runAtTargetFps(20, () => {
         const resized = resize(frame, {
           scale: { width: 300, height: 300 },
           pixelFormat: "rgb",
@@ -55,7 +55,7 @@ export default function App() {
 
         // 3. Run inference
         const results = Model.runSync([resized]);
-        console.log(results);
+        // console.log(results);
 
         // 3. Interpret results accordingly
         const detection_boxes = results[1];
@@ -76,7 +76,7 @@ export default function App() {
             box.value = { top, left, bottom, right };
 
             const labels = ["Monkeypox", "Chickenpox", "Acne", "Measles"];
-            const label = labels[detection_classes[0]] || "Unknown";
+            const label = labels[detection_classes[0]];
 
             if (box.value) {
               const rect = Skia.XYWHRect(
